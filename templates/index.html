@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Distress Property Predictor</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>📊 Real Estate Distress Predictor</h2>
+    <form method="POST" enctype="multipart/form-data">
+      <label>Select CSV File:</label><br>
+      <input type="file" name="file" accept=".csv" required><br><br>
+      <button type="submit">Analyze</button>
+    </form>
+
+    {% if distress_count is not none %}
+    <div class="result">
+      <p>✅ {{ distress_count }} high-risk leads detected.</p>
+      <a href="/download">Download Leads CSV</a>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>
