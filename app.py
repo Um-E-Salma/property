@@ -1,4 +1,86 @@
+# app.py
 import os
+import pandas as pd
+import joblib
+from flask import Flask, request, render_template, send_file
+
+app = Flask(__name__)
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Load saved model and preprocessing tools
+model = joblib.load("model.pkl")
+scaler = joblib.load("scaler.pkl")
+feature_columns = joblib.load("columns.pkl")
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    distress_count = None
+    if request.method == 'POST':
+        file = request.files['file']
+        if file:
+            path = os.path.join(UPLOAD_FOLDER, file.filename)
+            file.save(path)
+            df = pd.read_csv(path)
+
+            # Preprocessing (handle missing, encode, scale)
+            df.replace(["Yes", "No", "True", "False"], [1, 0, 1, 0], inplace=True)
+            if 'Address' in df.columns:
+                df.drop(columns=['Address'], inplace=True)
+
+            for col in df.select_dtypes(include='object').columns:
+                df[col] = df[col].astype(str).astype('category').cat.codes
+
+            # Ensure same columns as training
+            for col in feature_columns:
+                if col not in df.columns:
+                    df[col] = 0
+            df = df[feature_columns]
+
+            X_scaled = scaler.transform(df)
+
+            # Predict
+            distress_scores = model.predict_proba(X_scaled)[:, 1] * 100
+            df['Distress_Score'] = distress_scores
+
+            # Behavior Patterns
+            df['Likely_to_Sell_Soon'] = (df['Years Since Last Sale'] > 8).astype(int)
+            df['High_Turnover'] = (df['Previous Owners Count'] > 2).astype(int)
+            df['High_Unpaid_Taxes'] = (df['Liens Amount'] > df['Liens Amount'].median()).astype(int)
+            df['Negative_Equity'] = (df['Equity Percentage'] < 15).astype(int)
+
+            def insights(row):
+                ideas = []
+                if row['Distress_Score'] > 80:
+                    ideas.append("High chance of foreclosure")
+                if row['Likely_to_Sell_Soon']:
+                    ideas.append("Owner may sell soon")
+                if row['High_Unpaid_Taxes']:
+                    ideas.append("Unpaid taxes")
+                if row['Negative_Equity']:
+                    ideas.append("Negative equity")
+                return ", ".join(ideas)
+
+            df['Investor_Insights'] = df.apply(insights, axis=1)
+
+            # High-value leads
+            leads = df[df['Distress_Score'] > 75][
+                ['Property ID', 'Real Estate Home Knowledge', 'Distress_Score', 'Investor_Insights']]
+            leads.to_csv("high_value_leads.csv", index=False)
+            distress_count = leads.shape[0]
+
+    return render_template("index.html", distress_count=distress_count)
+
+@app.route('/download')
+def download():
+    return send_file("high_value_leads.csv", as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+# Working perfectly without model
+'''import os
 import pandas as pd
 from flask import Flask, request, render_template, send_file
 from sklearn.model_selection import train_test_split
@@ -68,4 +150,4 @@ def download():
     return send_file("high_value_leads.csv", as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True)'''
