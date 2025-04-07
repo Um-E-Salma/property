@@ -12,13 +12,6 @@ __pycache__/
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Model and scaler files
-*.pkl
-*.joblib
-
-# CSV and other large data files
-*.csv
-*.pkl
 
 # OS files
 .DS_Store
